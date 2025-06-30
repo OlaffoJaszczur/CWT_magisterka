@@ -1,0 +1,55 @@
+@startuml
+title Sequence Diagram - ADC Signal to Servo Control
+
+actor User
+
+User -> MainScript: Start script
+MainScript -> GPIO: Setup DRDY pin & Servo pins
+MainScript -> ServoController: Initialize 6 PWM servos
+MainScript -> ADC: Initialize ADS1263
+ADC --> MainScript: Success or failure
+
+MainScript -> ADC: Set Continuous Mode
+loop Each 1-second Cycle
+    MainScript -> Time: Start timer
+
+    loop Until 1 second passes
+        MainScript -> GPIO: Wait for DRDY low
+        MainScript -> ADC: Set channel CH0
+        MainScript -> ADC: Read raw CH0
+        ADC --> MainScript: Raw value
+        MainScript -> MainScript: Convert to voltage
+
+        MainScript -> ADC: Set channel CH2
+        MainScript -> ADC: Read raw CH2
+        ADC --> MainScript: Raw value
+        MainScript -> MainScript: Convert to voltage
+    end
+
+    MainScript -> FilterProcessor: Apply Bandpass filter
+    FilterProcessor --> MainScript: Filtered CH0 & CH2
+
+    MainScript -> FilterProcessor: Apply Comb filter
+    FilterProcessor --> MainScript: Denoised CH0 & CH2
+
+    MainScript -> Math: Compute Envelope (abs)
+    Math --> MainScript: Envelope values
+
+    MainScript -> Math: Average envelope
+    Math --> MainScript: avg_env_ch0, avg_env_ch2
+
+    MainScript -> ServoController: Map envelope to angles
+    loop For each of 6 servos
+        ServoController -> MainScript: Get angle
+        MainScript -> GPIO: Send PWM duty cycle
+    end
+
+    MainScript -> Time: Wait for remaining cycle time
+end
+
+User -> MainScript: Ctrl+C (KeyboardInterrupt)
+MainScript -> ServoController: Stop all servos
+MainScript -> ADC: Exit ADC
+MainScript -> GPIO: Cleanup
+
+@enduml
